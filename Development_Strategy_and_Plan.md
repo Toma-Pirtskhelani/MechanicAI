@@ -4,7 +4,7 @@
 - **Test-First Development**: Write real integration tests before implementation. No mocking or dummy tests, only super high level, real life checking tests for all the code written.
 - **Incremental Delivery**: Each commit must be a working feature
 - **No Mocks**: Test against real OpenAI and Supabase APIs
-- **Continuous Integration**: Push to GitHub after every meaningfull development and passing test suite
+- **Continuous Integration**: Push to GitHub after EVERY commit - this is mandatory for tracking progress
 
 ## Development Phases
 
@@ -13,9 +13,9 @@
 
 #### 0.1 Local Development Environment
 - [x] Create new GitHub repository: `MechaniAi`
-- [ ] Clone repository locally
-- [ ] Create virtual environment: `python -m venv venv`
-- [ ] Create `.gitignore`:
+- [x] Clone repository locally
+- [x] Create virtual environment: `python -m venv venv`
+- [x] Create `.gitignore`:
   ```
   venv/
   __pycache__/
@@ -24,7 +24,7 @@
   *.pyc
   .DS_Store
   ```
-- [ ] Create project structure:
+- [x] Create project structure:
   ```bash
   mkdir -p backend/{app/{api,core,db,services},tests}
   mkdir -p frontend
@@ -32,8 +32,8 @@
   touch backend/.env.example
   touch README.md
   ```
-- [ ] Git commit: `chore: initialize project structure`
-- [ ] Push to GitHub
+- [x] Git commit: `chore: initialize project structure`
+- [x] Push to GitHub
 
 #### 0.2 Dependencies & Configuration
 - [ ] Create `backend/requirements.txt`:
@@ -268,7 +268,7 @@ Every phase must pass these criteria:
 2. Write tests first
 3. Implement until tests pass
 4. Commit with descriptive message
-5. Push to GitHub
+5. **ALWAYS Push to GitHub immediately after every commit**
 6. Merge to main when phase complete
 7. Tag release: `git tag v0.X.0`
 
