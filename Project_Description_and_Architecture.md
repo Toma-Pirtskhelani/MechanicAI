@@ -18,7 +18,7 @@ graph TD
 # Technical Stack
 - **Backend**: FastAPI (Python)
 - **Database**: Supabase
-- **AI**: OpenAI API (GPT-4, Moderation)
+- **AI**: OpenAI API (GPT-4o-mini, Moderation)
 - **Frontend**: Next.js + TypeScript
 - **Testing**: Pytest with real API integration
 
