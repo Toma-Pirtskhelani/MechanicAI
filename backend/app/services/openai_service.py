@@ -684,3 +684,199 @@ LANGUAGE INSTRUCTIONS:
         
         # Ensure confidence stays within bounds
         return max(0.0, min(1.0, confidence))
+    
+    def compress_conversation_context(self, conversation_messages: List[Dict[str, str]]) -> Dict[str, Any]:
+        """
+        Compress conversation history while preserving essential information
+        
+        Args:
+            conversation_messages: List of conversation messages with 'role' and 'content'
+            
+        Returns:
+            Dict with compression results including:
+            - compressed_context: Summarized conversation text
+            - compression_ratio: Float indicating compression achieved (0-1)
+            - preserved_information: Dict with preserved critical information
+        """
+        try:
+            # Validate input
+            if conversation_messages is None:
+                raise ValueError("Conversation messages cannot be None")
+            
+            if not isinstance(conversation_messages, list):
+                raise ValueError("Conversation messages must be a list")
+            
+            # Handle empty conversation
+            if len(conversation_messages) == 0:
+                return {
+                    "compressed_context": "",
+                    "compression_ratio": 1.0,
+                    "preserved_information": {
+                        "topics": [],
+                        "vehicle_info": {},
+                        "safety_flags": []
+                    }
+                }
+            
+            # Filter valid messages
+            valid_messages = []
+            for msg in conversation_messages:
+                if isinstance(msg, dict) and "role" in msg and "content" in msg:
+                    if msg["role"] in ["user", "assistant", "system"] and msg["content"].strip():
+                        valid_messages.append(msg)
+            
+            # Handle minimal conversations
+            if len(valid_messages) <= 2:
+                original_text = " ".join(msg["content"] for msg in valid_messages)
+                return {
+                    "compressed_context": original_text,
+                    "compression_ratio": 1.0,
+                    "preserved_information": self._extract_preserved_information(valid_messages)
+                }
+            
+            # Create compression system prompt
+            system_prompt = """You are an expert at summarizing automotive technical conversations while preserving all critical information.
+
+COMPRESSION OBJECTIVES:
+- Preserve all automotive technical details (parts, symptoms, diagnostics)
+- Maintain vehicle information (make, model, year, mileage)
+- Keep all diagnostic codes (P-codes, error codes)
+- Preserve safety warnings and urgent recommendations
+- Maintain the logical flow of diagnosis and advice
+- Keep customer's specific problems and mechanic's solutions
+
+CRITICAL PRESERVATION REQUIREMENTS:
+- Vehicle specifications (make, model, year, mileage)
+- Specific symptoms (noises, behaviors, timing)
+- Diagnostic codes and technical terms
+- Safety concerns and warnings
+- Repair recommendations and next steps
+- Parts mentioned (brake pads, oil, filters, etc.)
+- Maintenance schedules and intervals
+
+COMPRESSION GUIDELINES:
+- Remove conversational fluff ("Hello", "Thank you", "You're welcome")
+- Combine similar exchanges about the same topic
+- Use technical shorthand where appropriate
+- Maintain chronological order of issues discussed
+- Preserve exact technical terms and code numbers
+
+OUTPUT FORMAT:
+Provide a concise technical summary that preserves all essential automotive information while removing unnecessary conversational elements. Focus on the technical content and actionable advice."""
+
+            # Convert conversation to text for compression
+            conversation_text = ""
+            for msg in valid_messages:
+                role_label = "Customer" if msg["role"] == "user" else "Mechanic"
+                conversation_text += f"{role_label}: {msg['content']}\n"
+            
+            # Create compression request
+            user_message = f"Compress this automotive conversation while preserving all technical details:\n\n{conversation_text}"
+            
+            # Generate compressed context
+            response = self.create_system_completion(
+                system_message=system_prompt,
+                user_message=user_message,
+                temperature=0.2,  # Low temperature for consistent compression
+                max_tokens=600    # Allow for detailed preservation
+            )
+            
+            compressed_context = response.strip()
+            
+            # Calculate compression ratio
+            original_length = len(conversation_text)
+            compressed_length = len(compressed_context)
+            compression_ratio = compressed_length / original_length if original_length > 0 else 1.0
+            
+            # Extract preserved information
+            preserved_info = self._extract_preserved_information(valid_messages)
+            
+            return {
+                "compressed_context": compressed_context,
+                "compression_ratio": compression_ratio,
+                "preserved_information": preserved_info
+            }
+            
+        except Exception as e:
+            logger.error(f"Error compressing conversation context: {e}")
+            raise  # Re-raise to allow tests to catch specific errors
+    
+    def _extract_preserved_information(self, messages: List[Dict[str, str]]) -> Dict[str, Any]:
+        """
+        Extract and categorize preserved information from conversation
+        
+        Args:
+            messages: List of conversation messages
+            
+        Returns:
+            Dict with categorized preserved information
+        """
+        preserved_info = {
+            "topics": [],
+            "vehicle_info": {},
+            "safety_flags": []
+        }
+        
+        # Combine all message content for analysis
+        all_text = " ".join(msg["content"].lower() for msg in messages)
+        
+        # Extract automotive topics
+        automotive_topics = {
+            "engine": ["engine", "motor", "piston", "cylinder", "timing", "valve"],
+            "brakes": ["brake", "pad", "disc", "rotor", "pedal", "stopping"],
+            "transmission": ["transmission", "gear", "shift", "clutch", "automatic", "manual"],
+            "electrical": ["battery", "alternator", "starter", "ignition", "electrical", "wire"],
+            "cooling": ["coolant", "radiator", "thermostat", "overheat", "fan", "temperature"],
+            "fuel": ["fuel", "gas", "diesel", "injection", "pump", "filter"],
+            "suspension": ["suspension", "shock", "strut", "spring", "wheel", "tire"],
+            "exhaust": ["exhaust", "muffler", "catalytic", "converter", "emission"]
+        }
+        
+        for topic, keywords in automotive_topics.items():
+            if any(keyword in all_text for keyword in keywords):
+                preserved_info["topics"].append(topic)
+        
+        # Extract vehicle information
+        import re
+        
+        # Year patterns (4 digits between 1950-2030)
+        years = re.findall(r'\b(19[5-9][0-9]|20[0-3][0-9])\b', all_text)
+        if years:
+            preserved_info["vehicle_info"]["year"] = years[0]
+        
+        # Mileage patterns
+        mileage_patterns = [
+            r'(\d{1,3}(?:,\d{3})*)\s*(?:miles|mi|km)',
+            r'(\d+)k\s*(?:miles|mi)',
+            r'(\d+)\s*thousand\s*miles'
+        ]
+        for pattern in mileage_patterns:
+            mileage_match = re.search(pattern, all_text)
+            if mileage_match:
+                preserved_info["vehicle_info"]["mileage"] = mileage_match.group(1)
+                break
+        
+        # Common vehicle makes
+        vehicle_makes = ["toyota", "honda", "bmw", "mercedes", "audi", "ford", "chevrolet", 
+                        "nissan", "hyundai", "kia", "volkswagen", "mazda", "subaru", "lexus"]
+        for make in vehicle_makes:
+            if make in all_text:
+                preserved_info["vehicle_info"]["make"] = make.title()
+                break
+        
+        # Safety flag detection
+        safety_keywords = [
+            "dangerous", "safety", "immediately", "stop driving", "do not drive",
+            "emergency", "urgent", "critical", "brake failure", "steering",
+            "life threatening", "pull over", "towing", "unsafe"
+        ]
+        
+        for keyword in safety_keywords:
+            if keyword in all_text:
+                preserved_info["safety_flags"].append(keyword)
+        
+        # Remove duplicates and limit length
+        preserved_info["topics"] = list(set(preserved_info["topics"]))[:5]
+        preserved_info["safety_flags"] = list(set(preserved_info["safety_flags"]))[:3]
+        
+        return preserved_info
