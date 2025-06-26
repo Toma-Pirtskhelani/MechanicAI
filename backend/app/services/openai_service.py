@@ -296,3 +296,146 @@ class OpenAIService:
         result["strict_threshold"] = strict_threshold
         
         return result 
+    
+    def check_automotive_relevance(self, query: str) -> Dict[str, Any]:
+        """
+        Check if a user query is related to automotive/vehicle mechanics and repair
+        
+        Args:
+            query: User query to analyze for automotive relevance
+            
+        Returns:
+            Dict with automotive relevance analysis including:
+            - is_automotive: Boolean indicating if query is automotive-related
+            - confidence: Float between 0-1 indicating confidence level
+            - reasoning: String explanation of the determination
+        """
+        try:
+            # Validate input
+            if query is None:
+                raise ValueError("Query cannot be None")
+            
+            if not isinstance(query, str):
+                raise ValueError("Query must be a string")
+            
+            # Handle empty or very short queries
+            if not query.strip() or len(query.strip()) < 2:
+                return {
+                    "is_automotive": False,
+                    "confidence": 1.0,
+                    "reasoning": "Query is empty or too short to be meaningful automotive content"
+                }
+            
+            # Create system prompt for automotive relevance detection
+            system_prompt = """You are an expert automotive mechanic and consultant for Tegeta Motors.
+
+Your task is to determine if a user query is related to automotive mechanics, vehicle repair, diagnostics, or maintenance.
+
+AUTOMOTIVE TOPICS INCLUDE:
+- Engine problems, repairs, diagnostics
+- Transmission, brake, suspension issues
+- Electrical system problems
+- Oil changes, fluid maintenance
+- Vehicle diagnostic codes (OBD-II)
+- Parts replacement and repair procedures
+- Any mechanical or electrical vehicle issues
+- Motorcycle, truck, or other vehicle mechanics
+
+NON-AUTOMOTIVE TOPICS INCLUDE:
+- Car insurance, financing, sales
+- Car wash services
+- Traffic laws and regulations
+- Driving lessons or tips
+- General automotive news or reviews
+- Non-mechanical car-related services
+
+LANGUAGE SUPPORT:
+- Handle both Georgian and English queries equally
+- Mixed language queries are acceptable
+- Technical automotive terms in either language
+
+RESPONSE FORMAT:
+Respond with a JSON object containing:
+{
+    "is_automotive": true/false,
+    "confidence": 0.0-1.0,
+    "reasoning": "Brief explanation of your determination"
+}
+
+Be precise and conservative. When in doubt about borderline cases, lean towards marking as non-automotive unless there's clear mechanical/repair intent."""
+
+            # Create user message
+            user_message = f"Analyze this query for automotive relevance: \"{query}\""
+            
+            # Get response from OpenAI
+            response = self.create_system_completion(
+                system_message=system_prompt,
+                user_message=user_message,
+                temperature=0.1,  # Low temperature for consistent results
+                max_tokens=200    # Reasonable limit for structured response
+            )
+            
+            # Parse JSON response
+            import json
+            try:
+                result = json.loads(response)
+                
+                # Validate response structure
+                if not isinstance(result, dict):
+                    raise ValueError("Response is not a dictionary")
+                
+                required_keys = ["is_automotive", "confidence", "reasoning"]
+                for key in required_keys:
+                    if key not in result:
+                        raise ValueError(f"Missing required key: {key}")
+                
+                # Validate data types and ranges
+                if not isinstance(result["is_automotive"], bool):
+                    raise ValueError("is_automotive must be boolean")
+                
+                if not isinstance(result["confidence"], (int, float)):
+                    raise ValueError("confidence must be numeric")
+                
+                if not (0 <= result["confidence"] <= 1):
+                    raise ValueError("confidence must be between 0 and 1")
+                
+                if not isinstance(result["reasoning"], str):
+                    raise ValueError("reasoning must be string")
+                
+                return result
+                
+            except (json.JSONDecodeError, ValueError) as e:
+                # Fallback: Parse response manually if JSON parsing fails
+                logger.warning(f"Failed to parse JSON response, using fallback analysis: {e}")
+                
+                # Simple keyword-based fallback
+                automotive_keywords = [
+                    # English keywords
+                    'engine', 'brake', 'transmission', 'oil', 'car', 'vehicle', 'motor',
+                    'repair', 'fix', 'diagnostic', 'battery', 'tire', 'wheel', 'exhaust',
+                    'suspension', 'clutch', 'radiator', 'alternator', 'starter',
+                    # Georgian keywords
+                    'მანქანა', 'ძრავა', 'სამუხრუჭე', 'ზეთი', 'გადაცემათა', 'კოლოფი',
+                    'რემონტი', 'გაწკდომა', 'ბატარეა', 'საბურავი', 'ბორბალი'
+                ]
+                
+                query_lower = query.lower()
+                automotive_matches = sum(1 for keyword in automotive_keywords if keyword in query_lower)
+                
+                if automotive_matches > 0:
+                    confidence = min(0.8, automotive_matches * 0.3)
+                    return {
+                        "is_automotive": True,
+                        "confidence": confidence,
+                        "reasoning": f"Detected automotive keywords (fallback analysis). Found {automotive_matches} relevant terms."
+                    }
+                else:
+                    return {
+                        "is_automotive": False,
+                        "confidence": 0.6,
+                        "reasoning": "No clear automotive keywords detected (fallback analysis)"
+                    }
+            
+        except Exception as e:
+            logger.error(f"Error checking automotive relevance: {e}")
+            raise  # Re-raise to allow tests to catch specific errors
