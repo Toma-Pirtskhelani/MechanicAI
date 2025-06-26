@@ -2,8 +2,9 @@ import os
 from dotenv import load_dotenv
 from typing import Optional
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables - try .env.local first (real credentials), then .env (template)
+load_dotenv(".env.local")  # Local credentials (ignored by git)
+load_dotenv()              # Template file (committed to git)
 
 
 class Config:
