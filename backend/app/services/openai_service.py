@@ -439,3 +439,248 @@ Be precise and conservative. When in doubt about borderline cases, lean towards 
         except Exception as e:
             logger.error(f"Error checking automotive relevance: {e}")
             raise  # Re-raise to allow tests to catch specific errors
+    
+    def generate_expert_response(self, query: str, context: Optional[Dict[str, Any]] = None, 
+                               conversation_history: Optional[List[Dict[str, str]]] = None) -> Dict[str, Any]:
+        """
+        Generate expert automotive advice for user queries
+        
+        Args:
+            query: User query requiring expert automotive advice
+            context: Optional context about vehicle (make, model, year, mileage, etc.)
+            conversation_history: Optional previous conversation messages
+            
+        Returns:
+            Dict with expert response including:
+            - response: Expert automotive advice text
+            - confidence: Float between 0-1 indicating confidence level  
+            - language: Detected language ("en", "ka", or "mixed")
+        """
+        try:
+            # Validate input
+            if query is None:
+                raise ValueError("Query cannot be None")
+            
+            if not isinstance(query, str):
+                raise ValueError("Query must be a string")
+            
+            # Handle empty or very short queries
+            if not query.strip():
+                return {
+                    "response": "I'm here to help with automotive questions. Please describe the issue you're experiencing with your vehicle, and I'll provide professional advice.",
+                    "confidence": 0.8,
+                    "language": "en"
+                }
+            
+            # Detect language
+            detected_language = self._detect_query_language(query)
+            
+            # Create expert system prompt
+            system_prompt = self._create_expert_system_prompt(detected_language)
+            
+            # Build message context
+            messages = [{"role": "system", "content": system_prompt}]
+            
+            # Add conversation history if provided
+            if conversation_history:
+                for msg in conversation_history[-6:]:  # Last 6 messages for context
+                    if msg.get("role") in ["user", "assistant"] and msg.get("content"):
+                        messages.append({"role": msg["role"], "content": msg["content"]})
+            
+            # Add vehicle context if provided
+            context_info = ""
+            if context:
+                context_parts = []
+                if context.get("vehicle_make"):
+                    context_parts.append(f"Make: {context['vehicle_make']}")
+                if context.get("vehicle_model"):
+                    context_parts.append(f"Model: {context['vehicle_model']}")
+                if context.get("vehicle_year"):
+                    context_parts.append(f"Year: {context['vehicle_year']}")
+                if context.get("mileage"):
+                    context_parts.append(f"Mileage: {context['mileage']}")
+                
+                if context_parts:
+                    context_info = f"Vehicle Information: {', '.join(context_parts)}\n\n"
+            
+            # Create the user message with context
+            user_message = f"{context_info}Customer Question: {query}"
+            messages.append({"role": "user", "content": user_message})
+            
+            # Generate expert response
+            response = self.create_completion(
+                messages=messages,
+                temperature=0.3,  # Low temperature for consistent, professional advice
+                max_tokens=800    # Allow for detailed responses
+            )
+            
+            expert_response = response["content"]
+            
+            # Calculate confidence based on response quality
+            confidence = self._calculate_response_confidence(query, expert_response, detected_language)
+            
+            return {
+                "response": expert_response,
+                "confidence": confidence,
+                "language": detected_language
+            }
+            
+        except Exception as e:
+            logger.error(f"Error generating expert response: {e}")
+            raise  # Re-raise to allow tests to catch specific errors
+    
+    def _detect_query_language(self, query: str) -> str:
+        """
+        Detect the primary language of the query
+        
+        Args:
+            query: Input query text
+            
+        Returns:
+            Language code: "en", "ka", or "mixed"
+        """
+        # Georgian Unicode range check
+        georgian_chars = sum(1 for char in query if '\u10A0' <= char <= '\u10FF')
+        english_chars = sum(1 for char in query if char.isalpha() and char.isascii())
+        
+        total_chars = georgian_chars + english_chars
+        
+        if total_chars == 0:
+            return "en"  # Default to English for non-alphabetic queries
+        
+        georgian_ratio = georgian_chars / total_chars
+        english_ratio = english_chars / total_chars
+        
+        if georgian_ratio > 0.6:
+            return "ka"
+        elif english_ratio > 0.6:
+            return "en"
+        else:
+            return "mixed"
+    
+    def _create_expert_system_prompt(self, language: str) -> str:
+        """
+        Create expert system prompt based on detected language
+        
+        Args:
+            language: Detected language code
+            
+        Returns:
+            System prompt for expert automotive advice
+        """
+        base_prompt = """You are an expert automotive technician and mechanic working for Tegeta Motors, a premier automotive service provider in Georgia.
+
+EXPERTISE AREAS:
+- Engine diagnostics and repair (all types: gasoline, diesel, hybrid)
+- Transmission systems (manual, automatic, CVT)
+- Brake systems (hydraulic, electric, ABS, ESP)
+- Electrical systems (starting, charging, ECU, sensors)
+- Cooling and heating systems
+- Suspension and steering systems
+- Fuel systems and emissions control
+- Diagnostic trouble codes (OBD-II)
+- Preventive maintenance schedules
+
+PROFESSIONAL STANDARDS:
+- Provide accurate, helpful automotive advice
+- Use clear explanations for technical concepts
+- Always prioritize safety in recommendations
+- Suggest professional inspection for complex issues
+- Give specific diagnostic steps when appropriate
+- Include cost considerations when relevant
+- Recommend genuine or quality aftermarket parts
+
+SAFETY PROTOCOLS:
+- Immediately flag dangerous situations (brake failure, steering issues, overheating)
+- Recommend stopping driving when safety is compromised
+- Advise seeking immediate professional help for critical issues
+- Include proper safety precautions for DIY work
+
+COMMUNICATION STYLE:
+- Professional yet friendly and approachable
+- Patient with customers of all knowledge levels
+- Avoid unnecessary technical jargon
+- Explain automotive concepts in understandable terms
+- Provide step-by-step guidance when appropriate"""
+
+        if language == "ka":
+            return base_prompt + """
+
+LANGUAGE INSTRUCTIONS:
+- Respond primarily in Georgian when the customer writes in Georgian
+- Use automotive terminology that Georgian customers understand
+- You may include English technical terms in parentheses when helpful
+- Be culturally appropriate for Georgian automotive service standards"""
+
+        elif language == "mixed":
+            return base_prompt + """
+
+LANGUAGE INSTRUCTIONS:
+- Respond in the language that seems most comfortable for the customer
+- Georgian and English mixed queries should be answered helpfully
+- Use both languages as needed for clarity
+- Include technical terms in both languages when helpful"""
+
+        else:  # English
+            return base_prompt + """
+
+LANGUAGE INSTRUCTIONS:
+- Respond in clear, professional English
+- Use automotive terminology appropriately
+- Explain technical terms when necessary
+- Maintain international automotive service standards"""
+    
+    def _calculate_response_confidence(self, query: str, response: str, language: str) -> float:
+        """
+        Calculate confidence score for the expert response
+        
+        Args:
+            query: Original user query
+            response: Generated expert response
+            language: Detected language
+            
+        Returns:
+            Confidence score between 0 and 1
+        """
+        confidence = 0.7  # Base confidence
+        
+        # Adjust based on response length (more detailed = higher confidence)
+        if len(response) > 200:
+            confidence += 0.1
+        elif len(response) > 100:
+            confidence += 0.05
+        elif len(response) < 50:
+            confidence -= 0.2
+        
+        # Check for automotive terminology
+        automotive_terms = [
+            "engine", "brake", "transmission", "oil", "fuel", "battery", "alternator",
+            "starter", "radiator", "coolant", "tire", "suspension", "diagnostic",
+            "მანქანა", "ძრავა", "სამუხრუჭე", "ზეთი", "ბატარეა", "გადაცემათა"
+        ]
+        
+        response_lower = response.lower()
+        found_terms = sum(1 for term in automotive_terms if term in response_lower)
+        
+        if found_terms >= 3:
+            confidence += 0.1
+        elif found_terms >= 2:
+            confidence += 0.05
+        elif found_terms == 0:
+            confidence -= 0.3
+        
+        # Check for safety considerations
+        safety_terms = ["safety", "danger", "immediately", "professional", "mechanic", "safe"]
+        found_safety = sum(1 for term in safety_terms if term in response_lower)
+        
+        if found_safety >= 2:
+            confidence += 0.05
+        
+        # Language consistency bonus
+        if language == "ka" and any(char for char in response if '\u10A0' <= char <= '\u10FF'):
+            confidence += 0.05
+        elif language == "en" and not any(char for char in response if '\u10A0' <= char <= '\u10FF'):
+            confidence += 0.05
+        
+        # Ensure confidence stays within bounds
+        return max(0.0, min(1.0, confidence))
