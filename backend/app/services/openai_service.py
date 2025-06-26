@@ -880,3 +880,404 @@ Provide a concise technical summary that preserves all essential automotive info
         preserved_info["safety_flags"] = list(set(preserved_info["safety_flags"]))[:3]
         
         return preserved_info
+
+    def detect_language(self, text: str) -> Dict[str, Any]:
+        """
+        Detect the primary language of input text with confidence scoring
+        
+        Args:
+            text: Input text to analyze for language
+            
+        Returns:
+            Dict with language detection results including:
+            - language: Language code ("en", "ka", or "mixed")
+            - confidence: Float between 0-1 indicating confidence level
+            - reasoning: String explanation of the determination
+        """
+        try:
+            # Validate input
+            if text is None:
+                raise ValueError("Text cannot be None")
+            
+            if not isinstance(text, str):
+                raise ValueError("Text must be a string")
+            
+            # Handle empty or very short text
+            if not text.strip():
+                return {
+                    "language": "en",
+                    "confidence": 0.9,
+                    "reasoning": "Empty text defaults to English"
+                }
+            
+            if len(text.strip()) < 3:
+                return {
+                    "language": "en",
+                    "confidence": 0.7,
+                    "reasoning": "Very short text defaults to English"
+                }
+            
+            # Use existing language detection logic with enhanced response
+            detected_lang = self._detect_query_language(text)
+            
+            # Calculate confidence based on character analysis
+            georgian_chars = sum(1 for char in text if '\u10A0' <= char <= '\u10FF')
+            english_chars = sum(1 for char in text if char.isalpha() and char.isascii())
+            total_chars = georgian_chars + english_chars
+            
+            if total_chars == 0:
+                return {
+                    "language": "en",
+                    "confidence": 0.6,
+                    "reasoning": "No alphabetic characters detected, defaulting to English"
+                }
+            
+            georgian_ratio = georgian_chars / total_chars
+            english_ratio = english_chars / total_chars
+            
+            # Enhanced confidence calculation
+            if detected_lang == "ka":
+                confidence = 0.7 + (georgian_ratio * 0.3)
+                reasoning = f"Georgian detected ({georgian_ratio:.1%} Georgian characters)"
+            elif detected_lang == "en":
+                confidence = 0.7 + (english_ratio * 0.3)
+                reasoning = f"English detected ({english_ratio:.1%} English characters)"
+            else:  # mixed
+                confidence = 0.5 + (min(georgian_ratio, english_ratio) * 0.4)
+                reasoning = f"Mixed language detected (Georgian: {georgian_ratio:.1%}, English: {english_ratio:.1%})"
+            
+            return {
+                "language": detected_lang,
+                "confidence": min(1.0, confidence),
+                "reasoning": reasoning
+            }
+            
+        except Exception as e:
+            logger.error(f"Error detecting language: {e}")
+            raise  # Re-raise to allow tests to catch specific errors
+
+    def translate_to_georgian(self, text: str) -> Dict[str, Any]:
+        """
+        Translate English text to Georgian with automotive context preservation
+        
+        Args:
+            text: English text to translate to Georgian
+            
+        Returns:
+            Dict with translation results including:
+            - translated_text: Georgian translation
+            - confidence: Float between 0-1 indicating translation confidence
+            - original_language: Detected original language
+        """
+        try:
+            # Validate input
+            if text is None:
+                raise ValueError("Text cannot be None")
+            
+            if not isinstance(text, str):
+                raise ValueError("Text must be a string")
+            
+            # Handle empty text
+            if not text.strip():
+                return {
+                    "translated_text": "",
+                    "confidence": 1.0,
+                    "original_language": "en"
+                }
+            
+            # Detect original language
+            lang_detection = self.detect_language(text)
+            original_lang = lang_detection["language"]
+            
+            # If already Georgian, return as-is
+            if original_lang == "ka":
+                return {
+                    "translated_text": text,
+                    "confidence": 0.95,
+                    "original_language": "ka"
+                }
+            
+            # Create translation system prompt
+            system_prompt = """You are an expert automotive translator specializing in English to Georgian translation.
+
+TRANSLATION REQUIREMENTS:
+- Translate automotive technical content accurately into Georgian
+- Preserve all technical codes (P-codes, OBD-II codes) exactly as written
+- Preserve all measurements and numbers (keep original units or convert appropriately)
+- Maintain automotive terminology precision
+- Use standard Georgian automotive vocabulary
+- Preserve the professional tone and technical accuracy
+
+TECHNICAL PRESERVATION:
+- Diagnostic codes like P0301, OBD-II should remain unchanged
+- Part names should be translated but keep recognizable technical terms
+- Safety warnings must be accurately conveyed
+- Measurements can be kept in original units or converted (mm, inches, etc.)
+
+AUTOMOTIVE VOCABULARY:
+- Engine = ძრავა
+- Brake = სამუხრუჭე
+- Transmission = გადაცემათა კოლოფი
+- Battery = ბატარეა
+- Oil = ზეთი
+- Coolant = გამაგრილებელი სითხე
+- Radiator = რადიატორი
+- Alternator = გენერატორი
+- Starter = სტარტერი
+
+OUTPUT: Provide only the Georgian translation, maintaining technical accuracy and professional tone."""
+
+            # Create user message
+            user_message = f"Translate this automotive text to Georgian: \"{text}\""
+            
+            # Generate translation
+            response = self.create_system_completion(
+                system_message=system_prompt,
+                user_message=user_message,
+                temperature=0.2,  # Low temperature for consistent translation
+                max_tokens=600    # Allow for detailed translations
+            )
+            
+            translated_text = response.strip()
+            
+            # Calculate translation confidence
+            confidence = self._calculate_translation_confidence(text, translated_text, "en", "ka")
+            
+            return {
+                "translated_text": translated_text,
+                "confidence": confidence,
+                "original_language": original_lang
+            }
+            
+        except Exception as e:
+            logger.error(f"Error translating to Georgian: {e}")
+            raise  # Re-raise to allow tests to catch specific errors
+
+    def translate_to_english(self, text: str) -> Dict[str, Any]:
+        """
+        Translate Georgian text to English with automotive context preservation
+        
+        Args:
+            text: Georgian text to translate to English
+            
+        Returns:
+            Dict with translation results including:
+            - translated_text: English translation
+            - confidence: Float between 0-1 indicating translation confidence
+            - original_language: Detected original language
+        """
+        try:
+            # Validate input
+            if text is None:
+                raise ValueError("Text cannot be None")
+            
+            if not isinstance(text, str):
+                raise ValueError("Text must be a string")
+            
+            # Handle empty text
+            if not text.strip():
+                return {
+                    "translated_text": "",
+                    "confidence": 1.0,
+                    "original_language": "ka"
+                }
+            
+            # Detect original language
+            lang_detection = self.detect_language(text)
+            original_lang = lang_detection["language"]
+            
+            # If already English, return as-is
+            if original_lang == "en":
+                return {
+                    "translated_text": text,
+                    "confidence": 0.95,
+                    "original_language": "en"
+                }
+            
+            # Create translation system prompt
+            system_prompt = """You are an expert automotive translator specializing in Georgian to English translation.
+
+TRANSLATION REQUIREMENTS:
+- Translate automotive technical content accurately into English
+- Preserve all technical codes (P-codes, OBD-II codes) exactly as written
+- Preserve all measurements and numbers with appropriate unit conversions
+- Maintain automotive terminology precision
+- Use standard English automotive vocabulary
+- Preserve the professional tone and technical accuracy
+
+TECHNICAL PRESERVATION:
+- Diagnostic codes like P0301, OBD-II should remain unchanged
+- Georgian automotive terms should be translated to standard English equivalents
+- Safety warnings must be accurately conveyed
+- Measurements should use appropriate English units (inches, feet, gallons, etc.)
+
+AUTOMOTIVE VOCABULARY REFERENCE:
+- ძრავა = Engine
+- სამუხრუჭე = Brake
+- გადაცემათა კოლოფი = Transmission
+- ბატარეა = Battery
+- ზეთი = Oil
+- გამაგრილებელი სითხე = Coolant
+- რადიატორი = Radiator
+- გენერატორი = Alternator
+- სტარტერი = Starter
+
+OUTPUT: Provide only the English translation, maintaining technical accuracy and professional tone."""
+
+            # Create user message
+            user_message = f"Translate this automotive text to English: \"{text}\""
+            
+            # Generate translation
+            response = self.create_system_completion(
+                system_message=system_prompt,
+                user_message=user_message,
+                temperature=0.2,  # Low temperature for consistent translation
+                max_tokens=600    # Allow for detailed translations
+            )
+            
+            translated_text = response.strip()
+            
+            # Calculate translation confidence
+            confidence = self._calculate_translation_confidence(text, translated_text, original_lang, "en")
+            
+            return {
+                "translated_text": translated_text,
+                "confidence": confidence,
+                "original_language": original_lang
+            }
+            
+        except Exception as e:
+            logger.error(f"Error translating to English: {e}")
+            raise  # Re-raise to allow tests to catch specific errors
+
+    def auto_translate_response(self, user_query: str, system_response: str) -> Dict[str, Any]:
+        """
+        Automatically translate system response to match user's language preference
+        
+        Args:
+            user_query: Original user query to detect language preference
+            system_response: System response that may need translation
+            
+        Returns:
+            Dict with auto-translation results including:
+            - needs_translation: Boolean indicating if translation was needed
+            - user_language: Detected user language preference
+            - response_language: Detected system response language
+            - translated_response: Translated response (or original if no translation needed)
+            - confidence: Float between 0-1 indicating translation confidence
+        """
+        try:
+            # Validate input
+            if user_query is None or system_response is None:
+                raise ValueError("Both user_query and system_response cannot be None")
+            
+            if not isinstance(user_query, str) or not isinstance(system_response, str):
+                raise ValueError("Both user_query and system_response must be strings")
+            
+            # Detect languages
+            user_lang_detection = self.detect_language(user_query)
+            response_lang_detection = self.detect_language(system_response)
+            
+            user_language = user_lang_detection["language"]
+            response_language = response_lang_detection["language"]
+            
+            # Determine if translation is needed
+            needs_translation = False
+            translated_response = system_response
+            confidence = 0.95  # High confidence for no translation
+            
+            # Translation logic
+            if user_language == "en" and response_language == "ka":
+                # User speaks English, response is Georgian -> translate to English
+                translation_result = self.translate_to_english(system_response)
+                translated_response = translation_result["translated_text"]
+                confidence = translation_result["confidence"]
+                needs_translation = True
+                
+            elif user_language == "ka" and response_language == "en":
+                # User speaks Georgian, response is English -> translate to Georgian
+                translation_result = self.translate_to_georgian(system_response)
+                translated_response = translation_result["translated_text"]
+                confidence = translation_result["confidence"]
+                needs_translation = True
+                
+            elif user_language == "mixed":
+                # Mixed language user - keep response as-is for now
+                # Future enhancement: Could implement smart language selection
+                needs_translation = False
+                confidence = 0.8
+                
+            else:
+                # Languages match or no translation needed
+                needs_translation = False
+                confidence = 0.9
+            
+            return {
+                "needs_translation": needs_translation,
+                "user_language": user_language,
+                "response_language": response_language,
+                "translated_response": translated_response,
+                "confidence": confidence
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in auto-translate response: {e}")
+            raise  # Re-raise to allow tests to catch specific errors
+
+    def _calculate_translation_confidence(self, original_text: str, translated_text: str, 
+                                        source_lang: str, target_lang: str) -> float:
+        """
+        Calculate confidence score for translation quality
+        
+        Args:
+            original_text: Original text before translation
+            translated_text: Translated text
+            source_lang: Source language code
+            target_lang: Target language code
+            
+        Returns:
+            Confidence score between 0 and 1
+        """
+        confidence = 0.7  # Base confidence
+        
+        # Check if translation actually occurred (different from original)
+        if original_text.strip() == translated_text.strip():
+            if source_lang == target_lang:
+                confidence = 0.95  # Same language, no translation needed
+            else:
+                confidence = 0.3   # No translation when expected
+        
+        # Check for appropriate target language characters
+        if target_lang == "ka":
+            georgian_chars = sum(1 for char in translated_text if '\u10A0' <= char <= '\u10FF')
+            if georgian_chars > 0:
+                confidence += 0.2
+            else:
+                confidence -= 0.3  # Expected Georgian but didn't get it
+                
+        elif target_lang == "en":
+            english_chars = sum(1 for char in translated_text if char.isalpha() and char.isascii())
+            total_alpha = sum(1 for char in translated_text if char.isalpha())
+            if total_alpha > 0 and english_chars / total_alpha > 0.7:
+                confidence += 0.2
+            else:
+                confidence -= 0.3  # Expected English but didn't get it
+        
+        # Check for preserved technical codes
+        import re
+        codes = re.findall(r'\b[A-Z]\d{4}\b', original_text)  # P0301, U0101, etc.
+        preserved_codes = sum(1 for code in codes if code in translated_text)
+        if codes:
+            preservation_ratio = preserved_codes / len(codes)
+            confidence += preservation_ratio * 0.1
+        
+        # Check for reasonable length ratio
+        if len(original_text) > 0:
+            length_ratio = len(translated_text) / len(original_text)
+            if 0.5 <= length_ratio <= 2.0:  # Reasonable translation length
+                confidence += 0.05
+            else:
+                confidence -= 0.1  # Suspicious length ratio
+        
+        # Ensure confidence stays within bounds
+        return max(0.0, min(1.0, confidence))

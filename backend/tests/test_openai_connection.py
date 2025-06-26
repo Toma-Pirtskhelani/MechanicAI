@@ -47,7 +47,7 @@ class TestOpenAIServiceInitialization:
         
         # Check default model configuration
         assert hasattr(service, 'default_model')
-        assert service.default_model in ["gpt-4", "gpt-4-turbo-preview", "gpt-4-turbo", "gpt-4o"]
+        assert service.default_model in ["gpt-4", "gpt-4-turbo-preview", "gpt-4-turbo", "gpt-4o", "gpt-4o-mini"]
         
         # Verify model is accessible
         model_info = service.get_model_info()
@@ -187,7 +187,7 @@ class TestOpenAIServiceConfiguration:
         service = OpenAIService()
         
         # Verify default settings are appropriate for automotive assistant
-        assert service.default_model in ["gpt-4", "gpt-4-turbo", "gpt-4-turbo-preview", "gpt-4o"]
+        assert service.default_model in ["gpt-4", "gpt-4-turbo", "gpt-4-turbo-preview", "gpt-4o", "gpt-4o-mini"]
         assert hasattr(service, 'default_temperature')
         assert 0.0 <= service.default_temperature <= 1.0
         assert hasattr(service, 'default_max_tokens')

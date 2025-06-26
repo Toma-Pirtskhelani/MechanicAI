@@ -97,7 +97,7 @@ class TestConfigurationComprehensive:
         assert len(Config.SUPABASE_KEY) > 50, "SUPABASE_KEY seems too short"
         
         # Test optional variables have sensible defaults
-        assert Config.OPENAI_MODEL == "gpt-4-turbo-preview", "Default model should be gpt-4-turbo-preview"
+        assert Config.OPENAI_MODEL == "gpt-4o-mini", "Default model should be gpt-4o-mini"
         assert isinstance(Config.DEBUG, bool), "DEBUG should be a boolean"
     
     def test_config_security_practices(self):

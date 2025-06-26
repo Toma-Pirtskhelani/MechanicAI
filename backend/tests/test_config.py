@@ -16,7 +16,7 @@ def test_config_loads_environment_variables():
 def test_config_default_values():
     """Test that Config has proper default values"""
     # Test default model
-    assert Config.OPENAI_MODEL == "gpt-4-turbo-preview"
+    assert Config.OPENAI_MODEL == "gpt-4o-mini"
     
     # Test default debug (should be False if not set)
     if not os.getenv("DEBUG"):
