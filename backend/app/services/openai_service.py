@@ -214,4 +214,85 @@ class OpenAIService:
             {"role": "user", "content": user_message}
         ]
         response = self.create_completion(messages=messages, **kwargs)
-        return response["content"] 
+        return response["content"]
+    
+    def moderate_content(self, content: str) -> Dict[str, Any]:
+        """
+        Moderate content using OpenAI Moderation API
+        
+        Args:
+            content: Text content to moderate
+            
+        Returns:
+            Dict with moderation results including safety determination
+        """
+        try:
+            # Validate input
+            if content is None:
+                raise ValueError("Content cannot be None")
+            
+            if not isinstance(content, str):
+                raise ValueError("Content must be a string")
+            
+            # Handle empty or whitespace-only content
+            if not content.strip():
+                return {
+                    "flagged": False,
+                    "categories": {},
+                    "category_scores": {},
+                    "safe": True,
+                    "model": "text-moderation-stable",
+                    "id": "empty-content"
+                }
+            
+            # Call OpenAI Moderation API
+            response = self.client.moderations.create(input=content)
+            
+            # Extract the first result (since we're sending single content)
+            result = response.results[0]
+            
+            # Create enriched response with our custom safety determination
+            moderation_result = {
+                "flagged": result.flagged,
+                "categories": result.categories.model_dump(),
+                "category_scores": result.category_scores.model_dump(),
+                "safe": not result.flagged,  # Safe if not flagged
+                "model": response.model,
+                "id": response.id
+            }
+            
+            return moderation_result
+            
+        except Exception as e:
+            logger.error(f"Error moderating content: {e}")
+            raise  # Re-raise to allow tests to catch specific errors
+    
+    def moderate_content_strict(self, content: str, strict_threshold: float = 0.1) -> Dict[str, Any]:
+        """
+        Moderate content with stricter thresholds for enhanced safety
+        
+        Args:
+            content: Text content to moderate
+            strict_threshold: Lower threshold for flagging content (default 0.1)
+            
+        Returns:
+            Dict with moderation results using stricter safety determination
+        """
+        # Get standard moderation result
+        result = self.moderate_content(content)
+        
+        # Apply stricter thresholds
+        category_scores = result["category_scores"]
+        
+        # Check if any score exceeds strict threshold (handle None values)
+        strict_flagged = any(
+            score is not None and score > strict_threshold 
+            for score in category_scores.values()
+        )
+        
+        # Override safety determination with strict threshold
+        result["safe"] = not (result["flagged"] or strict_flagged)
+        result["strict_mode"] = True
+        result["strict_threshold"] = strict_threshold
+        
+        return result 
