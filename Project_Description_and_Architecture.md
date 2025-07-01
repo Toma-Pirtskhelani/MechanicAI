@@ -6,14 +6,24 @@
 # Core Flow
 graph TD
     A[User Input Georgian/English] --> B[Retrieve Previous Conversation Context from Supabase]
-    B --> C[Enhance Message with Context]
-    C --> D[OpenAI Moderation API Check]
+    B --> C[Advanced Context Enhancement]
+    C --> C1[Vehicle Information Extraction]
+    C --> C2[Symptom Categorization] 
+    C --> C3[Diagnostic Code Analysis]
+    C --> C4[Maintenance History Analysis]
+    C --> C5[Safety Priority Assessment]
+    C1 --> D[OpenAI Moderation API Check]
+    C2 --> D
+    C3 --> D
+    C4 --> D
+    C5 --> D
     D --> E{OpenAI API check Automotive Related?}
     E -->|No| F[Polite Redirect Response]
-    E -->|Yes| G[Generate Expert Mechanic Response with OpenAI API]
-    G --> H[Compress & Store Conversation in Supabase using OpenAI API]
-    H --> I[Translate the response to Georgian if Needed with OpenAI API]
-    I --> J[Return Response to User]
+    E -->|Yes| G[Generate Expert Mechanic Response with Context Enhancement]
+    G --> H[Predictive Analysis & Component Mapping]
+    H --> I[Compress & Store Enhanced Context in Supabase]
+    I --> J[Translate Response to Georgian if Needed with OpenAI API]
+    J --> K[Return Enhanced Response to User]
 
 # Technical Stack
 - **Backend**: FastAPI (Python)
@@ -39,10 +49,13 @@ tegeta-mechani-ai/
 
 
 # Key Features
-1. **Bilingual Support**: Georgian and English
-2. **Context-Aware**: Remembers previous conversations
-3. **Safe**: Content moderation
-4. **Expert**: Professional automotive advice
-5. **Simple**: Clean, focused implementation
+1. **Bilingual Support**: Georgian and English with automatic translation
+2. **Context-Aware**: Remembers previous conversations with intelligent compression
+3. **Safe**: Advanced content moderation and safety priority assessment
+4. **Expert**: Professional automotive advice with predictive analysis
+5. **Intelligent**: Vehicle extraction, symptom categorization, and diagnostic intelligence
+6. **Predictive**: Maintenance forecasting and component failure analysis
+7. **Performance Optimized**: Intelligent caching and batch processing
+8. **Enterprise Ready**: Robust error handling and concurrent operation support
 
 ---
