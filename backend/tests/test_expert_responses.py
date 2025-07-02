@@ -128,7 +128,11 @@ class TestExpertResponseGeneration:
             "My steering wheel locked up while driving"
         ]
         
-        for query in dangerous_queries:
+        for i, query in enumerate(dangerous_queries):
+            # Add delay between requests to prevent rate limiting
+            if i > 0:
+                time.sleep(1)  # 1 second delay between requests
+            
             result = openai_service.generate_expert_response(query)
             response_text = result["response"].lower()
             
@@ -146,7 +150,11 @@ class TestExpertResponseGeneration:
             "Can you fix my car problem quickly?"
         ]
         
-        for query in queries:
+        for i, query in enumerate(queries):
+            # Add delay between requests to prevent rate limiting
+            if i > 0:
+                time.sleep(1)  # 1 second delay between requests
+            
             result = openai_service.generate_expert_response(query)
             response_text = result["response"]
             
@@ -211,7 +219,11 @@ class TestExpertResponseGeneration:
             "What's the recommended tire rotation schedule?"
         ]
         
-        for query in maintenance_queries:
+        for i, query in enumerate(maintenance_queries):
+            # Add delay between requests to prevent rate limiting
+            if i > 0:
+                time.sleep(1)  # 1 second delay between requests
+            
             result = openai_service.generate_expert_response(query)
             response_text = result["response"]
             
@@ -232,7 +244,11 @@ class TestExpertResponseGeneration:
             "Transmission issues"
         ]
         
-        for query in test_queries:
+        for i, query in enumerate(test_queries):
+            # Add delay between requests to prevent rate limiting
+            if i > 0:
+                time.sleep(1)  # 1 second delay between requests
+            
             start_time = time.time()
             result = openai_service.generate_expert_response(query)
             end_time = time.time()
@@ -269,7 +285,11 @@ class TestExpertResponseGeneration:
         ]
         
         responses = []
-        for query in similar_queries:
+        for i, query in enumerate(similar_queries):
+            # Add delay between requests to prevent rate limiting
+            if i > 0:
+                time.sleep(2)  # 2 second delay between requests
+            
             result = openai_service.generate_expert_response(query)
             responses.append(result)
         
@@ -294,7 +314,11 @@ class TestExpertResponseGeneration:
             "ჩემი BMW-ის transmission slipping-ს აკეთებს"  # Mixed: My BMW's transmission is slipping
         ]
         
-        for query in mixed_queries:
+        for i, query in enumerate(mixed_queries):
+            # Add delay between requests to prevent rate limiting
+            if i > 0:
+                time.sleep(1)  # 1 second delay between requests
+            
             result = openai_service.generate_expert_response(query)
             response_text = result["response"]
             
@@ -340,7 +364,11 @@ class TestExpertResponseGeneration:
             "Engine overheats and loses power on highway"
         ]
         
-        for query in complex_queries:
+        for i, query in enumerate(complex_queries):
+            # Add delay between requests to prevent rate limiting
+            if i > 0:
+                time.sleep(1)  # 1 second delay between requests
+            
             result = openai_service.generate_expert_response(query)
             response_text = result["response"].lower()
             
