@@ -19,6 +19,7 @@ from app.config import config
 from app.core.chat_service import ChatService
 from app.db.database_service import DatabaseService
 from app.services.openai_service import OpenAIService
+from app.api.routes.chat import router as chat_router
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -74,6 +75,9 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    
+    # Include routers
+    app.include_router(chat_router, tags=["chat"])
     
     # Global exception handler
     @app.exception_handler(Exception)

@@ -125,30 +125,70 @@ class ConversationRepository:
             logger.error(f"Error deleting conversation {conversation_id}: {e}")
             return False
     
-    def get_user_conversations(self, user_id: str, limit: int = 50) -> List[Dict[str, Any]]:
+    def get_user_conversations(self, user_id: str, limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:
         """
         Get all conversations for a user
         
         Args:
             user_id: ID of the user
             limit: Maximum number of conversations to return
+            offset: Number of conversations to skip
             
         Returns:
             List of conversation dicts, ordered by most recent first
         """
         try:
-            result = self.db_service.client.table('conversations')\
+            query = self.db_service.client.table('conversations')\
                 .select("*")\
                 .eq('user_id', user_id)\
                 .order('created_at', desc=True)\
-                .limit(limit)\
-                .execute()
+                .limit(limit)
             
-            return result.data if result.data else []
+            if offset > 0:
+                query = query.offset(offset)
+            
+            result = query.execute()
+            
+            # Add additional fields for the API response
+            conversations = result.data if result.data else []
+            for conv in conversations:
+                # Add message count and last message time
+                messages = self.get_conversation_messages(conv['id'])
+                conv['message_count'] = len(messages)
+                if messages:
+                    conv['last_message_at'] = messages[-1]['created_at']
+                    conv['preview'] = messages[0]['content'][:100] if messages[0]['content'] else 'Automotive conversation'
+                else:
+                    conv['last_message_at'] = conv['created_at']
+                    conv['preview'] = 'Automotive conversation'
+            
+            return conversations
             
         except Exception as e:
             logger.error(f"Error getting conversations for user {user_id}: {e}")
             return []
+    
+    def count_user_conversations(self, user_id: str) -> int:
+        """
+        Count total conversations for a user
+        
+        Args:
+            user_id: ID of the user
+            
+        Returns:
+            Total number of conversations for the user
+        """
+        try:
+            result = self.db_service.client.table('conversations')\
+                .select("id", count="exact")\
+                .eq('user_id', user_id)\
+                .execute()
+            
+            return result.count if result.count is not None else 0
+            
+        except Exception as e:
+            logger.error(f"Error counting conversations for user {user_id}: {e}")
+            return 0
     
     # Message Operations
     
