@@ -20,6 +20,16 @@ from app.core.chat_service import ChatService
 from app.db.database_service import DatabaseService
 from app.services.openai_service import OpenAIService
 from app.api.routes.chat import router as chat_router
+from app.api.error_handlers import (
+    validation_exception_handler,
+    http_exception_handler,
+    general_exception_handler,
+    SecurityHeadersMiddleware,
+    RequestIDMiddleware,
+    RateLimitMiddleware,
+    SimpleRateLimiter
+)
+from fastapi.exceptions import RequestValidationError
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -76,18 +86,19 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     
+    # Add custom middleware
+    rate_limiter = SimpleRateLimiter(requests_per_minute=100)  # 100 requests per minute
+    app.add_middleware(RateLimitMiddleware, rate_limiter=rate_limiter)
+    app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(RequestIDMiddleware)
+    
+    # Add exception handlers
+    app.add_exception_handler(RequestValidationError, validation_exception_handler)
+    app.add_exception_handler(HTTPException, http_exception_handler)
+    app.add_exception_handler(Exception, general_exception_handler)
+    
     # Include routers
     app.include_router(chat_router, tags=["chat"])
-    
-    # Global exception handler
-    @app.exception_handler(Exception)
-    async def global_exception_handler(request, exc):
-        """Global exception handler for unhandled errors."""
-        logger.error(f"Unhandled error: {exc}")
-        return JSONResponse(
-            status_code=500,
-            content={"detail": "Internal server error"}
-        )
     
     # Root endpoint
     @app.get("/")

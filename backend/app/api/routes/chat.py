@@ -10,6 +10,7 @@ import logging
 import time
 import sys
 import os
+import re
 from datetime import datetime
 
 # Add the backend directory to the Python path
@@ -44,10 +45,84 @@ class ChatRequest(BaseModel):
     @field_validator('message')
     @classmethod
     def validate_message(cls, v):
-        """Validate message content."""
-        if not v.strip():
+        """Validate and sanitize message content."""
+        if not v or not v.strip():
             raise ValueError('Message cannot be empty or whitespace only')
-        return v.strip()
+        
+        # Sanitize the message
+        sanitized = cls._sanitize_input(v.strip())
+        
+        # Check for extremely repetitive content (potential spam)
+        if cls._is_repetitive_content(sanitized):
+            raise ValueError('Message contains excessive repetitive content')
+        
+        return sanitized
+    
+    @field_validator('user_id')
+    @classmethod  
+    def validate_user_id(cls, v):
+        """Validate and sanitize user ID."""
+        if not v or not v.strip():
+            raise ValueError('User ID cannot be empty or whitespace only')
+        
+        # Sanitize user ID
+        sanitized = cls._sanitize_input(v.strip())
+        
+        # Check for valid format (alphanumeric, underscores, hyphens only)
+        if not re.match(r'^[a-zA-Z0-9_-]+$', sanitized):
+            raise ValueError('User ID can only contain letters, numbers, underscores, and hyphens')
+        
+        return sanitized
+    
+    @field_validator('conversation_id')
+    @classmethod
+    def validate_conversation_id(cls, v):
+        """Validate conversation ID format if provided."""
+        if v is None:
+            return v
+        
+        if not v.strip():
+            raise ValueError('Conversation ID cannot be empty if provided')
+        
+        # Sanitize conversation ID
+        sanitized = cls._sanitize_input(v.strip())
+        
+        # Basic UUID-like format check (flexible to accommodate different ID formats)
+        if not re.match(r'^[a-zA-Z0-9_-]+$', sanitized):
+            raise ValueError('Invalid conversation ID format')
+        
+        return sanitized
+    
+    @staticmethod
+    def _sanitize_input(text: str) -> str:
+        """Sanitize input text to prevent injection attacks."""
+        # Remove null bytes
+        text = text.replace('\x00', '')
+        
+        # Remove or escape potentially dangerous characters
+        # Remove CRLF injection attempts
+        text = text.replace('\r\n', ' ').replace('\r', ' ').replace('\n', ' ')
+        
+        # Remove excessive whitespace
+        text = re.sub(r'\s+', ' ', text).strip()
+        
+        return text
+    
+    @staticmethod
+    def _is_repetitive_content(text: str) -> bool:
+        """Check if content is excessively repetitive (potential spam)."""
+        words = text.split()
+        if len(words) < 10:
+            return False
+        
+        # Check for same word repeated many times
+        word_counts = {}
+        for word in words:
+            word_counts[word] = word_counts.get(word, 0) + 1
+            if word_counts[word] > len(words) * 0.5:  # Same word > 50% of content
+                return True
+        
+        return False
 
 
 class PerformanceMetrics(BaseModel):
